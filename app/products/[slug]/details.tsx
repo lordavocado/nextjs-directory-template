@@ -131,7 +131,7 @@ export const ProductDetails = ({ product }: { product: Product }) => (
       href={`/`}
       className="py-4 md:hidden items-center text-2xl font-semibold text-yellow-500  z-10 w-full flex"
     >
-      <ArrowLeft className="mr-2" /> Back to all productss
+      <ArrowLeft className="mr-2" /> Back to all products
     </Link>
     <div className="absolute top-36 md:top-0 left-[-10%] right-0 h-[400px] w-[300px]  md:h-[500px] md:w-[500px] rounded-full bg-[radial-gradient(circle_farthest-side,rgba(255,235,59,.15),rgba(255,255,255,0))]"></div>
   </div>

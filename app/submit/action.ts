@@ -1,12 +1,13 @@
 "use server"
 
 import "server-only"
-import { revalidatePath, revalidateTag } from "next/cache"
+import { revalidatePath } from "next/cache"
 import { createClient } from "@/db/supabase/server"
 import { anthropic } from "@ai-sdk/anthropic"
 import { generateObject } from "ai"
 
 import { enrichmentSchema, schema } from "./schema"
+import { getAIEnrichmentPrompt } from "./prompt"
 
 // Configuration object
 const config = {
@@ -185,8 +186,8 @@ export async function onSubmitToolAction(
       throw new Error(error.message)
     }
 
-    revalidatePath("/")
-    revalidateTag("product-filters")
+    revalidatePath("/", "layout")
+    revalidatePath("/products", "page")
 
     console.log("Product data successfully inserted")
 

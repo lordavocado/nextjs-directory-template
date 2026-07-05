@@ -1,4 +1,4 @@
-const getAIEnrichmentPrompt = (name: string, cat: string, desc: string) => `
+export const getAIEnrichmentPrompt = (name: string, cat: string, desc: string) => `
 Extract relevant tags and labels for the following product descriptions. Ensure all tags and labels are lowercase:
 
 Tags: Specific keywords that highlight the main technologies, topics, and features of the product.

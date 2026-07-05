@@ -7,8 +7,8 @@ const supabase = createClient()
 
 const useResourceCounter = () => {
   const incrementViewCount = useCallback(async (id: string) => {
-    const { data, error } = await supabase.rpc("increment_view_count", {
-      resource_id: id,
+    const { data, error } = await supabase.rpc("increment_product_view_count", {
+      product_id: id,
     })
 
     if (error) {
@@ -19,8 +19,8 @@ const useResourceCounter = () => {
   }, [])
 
   const incrementClickCount = useCallback(async (id: string) => {
-    const { data, error } = await supabase.rpc("increment_click_count", {
-      resource_id: id,
+    const { data, error } = await supabase.rpc("increment_product_view_count", {
+      product_id: id,
     })
 
     if (error) {

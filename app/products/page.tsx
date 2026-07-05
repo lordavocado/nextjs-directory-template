@@ -16,14 +16,14 @@ export const dynamic = "force-dynamic"
 export default async function ProductsPage({
   searchParams,
 }: {
-  searchParams: {
+  searchParams: Promise<{
     search?: string
     category?: string
     label?: string
     tag?: string
-  }
+  }>
 }): Promise<ReactElement> {
-  const { search, category, label, tag } = searchParams
+  const { search, category, label, tag } = await searchParams
   const data = await getProducts(search, category, label, tag)
   let filters = await getCachedFilters()
 

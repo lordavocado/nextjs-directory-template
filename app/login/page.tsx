@@ -5,8 +5,9 @@ import { LoginForm } from "./form"
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: { message: string }
+  searchParams: Promise<{ message: string }>
 }) {
+  const { message } = await searchParams
   return (
     <div>
       <div className="absolute top-2 left-2 ">
@@ -15,9 +16,9 @@ export default async function LoginPage({
       <div className="w-full flex flex-col items-center justify-center gap-2  pt-24">
         <LoginForm />
 
-        {searchParams?.message && (
+        {message && (
           <p className="mt-4 p-4 bg-foreground/10 text-foreground text-center">
-            {searchParams.message}
+            {message}
           </p>
         )}
       </div>
