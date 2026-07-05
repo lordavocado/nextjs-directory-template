@@ -33,13 +33,13 @@ interface Product {
   codename: string
   punchline: string
   description: string
-  logo_src: string
+  logo_src: string | null
   user_id: string
   tags: string[]
   view_count: number
   approved: boolean
   labels: string[]
-  categories: string
+  categories: string | null
 }
 
 export const ProductDetails = ({ product }: { product: Product }) => (
@@ -86,7 +86,7 @@ export const ProductDetails = ({ product }: { product: Product }) => (
           <div className="w-full p-1 md:p-3 rounded-[28px] md:rounded-[36px] bg-[#3d3d3d]">
             <img
               className="w-full h-full rounded-3xl object-cover"
-              src={product.logo_src}
+              src={product.logo_src ?? undefined}
               alt={`${product.full_name} image`}
             />
           </div>

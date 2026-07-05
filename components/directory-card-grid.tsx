@@ -18,38 +18,13 @@ interface Product {
   codename: string
   punchline: string
   description: string
-  logo_src: string
+  logo_src: string | null
   user_id: string
   tags: string[]
   view_count: number
   approved: boolean
   labels: string[]
-  categories: string
-}
-
-export interface SEOCardGridProps {
-  sortedData: Product[]
-  filteredFeaturedData: Product[] | null
-  children?: React.ReactNode
-}
-
-interface Product {
-  id: string
-  created_at: string
-  full_name: string
-  email: string
-  twitter_handle: string
-  product_website: string
-  codename: string
-  punchline: string
-  description: string
-  logo_src: string
-  user_id: string
-  tags: string[]
-  view_count: number
-  approved: boolean
-  labels: string[]
-  categories: string
+  categories: string | null
 }
 
 export interface SEOCardGridProps {

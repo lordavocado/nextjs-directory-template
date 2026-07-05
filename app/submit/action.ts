@@ -6,13 +6,13 @@ import { createClient } from "@/db/supabase/server"
 import { anthropic } from "@ai-sdk/anthropic"
 import { generateObject } from "ai"
 
+import { getClient, initDb } from "@/db/turso/client"
 import { enrichmentSchema, schema } from "./schema"
 import { getAIEnrichmentPrompt } from "./prompt"
 
-// Configuration object
 const config = {
   aiEnrichmentEnabled: false,
-  aiModel: anthropic("claude-3-haiku-20240307"), // You can change this to another model if needed
+  aiModel: anthropic("claude-3-haiku-20240307"),
   storageBucket: "product-logos",
   cacheControl: "3600",
   allowNewTags: true,
@@ -31,14 +31,12 @@ type Enrichment = {
   labels: string[]
 }
 
-// Helper function to check if an error has a message
 function isErrorWithMessage(error: unknown): error is Error {
   return typeof error === "object" && error !== null && "message" in error
 }
 
-// Uploads the logo file to the storage bucket
 async function uploadLogoFile(
-  db: any,
+  supabase: Awaited<ReturnType<typeof createClient>>,
   logoFile: File,
   codename: string
 ): Promise<string> {
@@ -47,7 +45,7 @@ async function uploadLogoFile(
   const filePath = `${codename}/${fileName}`
   const fileBuffer = await logoFile.arrayBuffer()
 
-  const { error: uploadError } = await db.storage
+  const { error: uploadError } = await supabase.storage
     .from(config.storageBucket)
     .upload(filePath, Buffer.from(fileBuffer), {
       cacheControl: config.cacheControl,
@@ -59,48 +57,39 @@ async function uploadLogoFile(
     throw new Error(uploadError.message)
   }
 
-  const publicUrlResponse = db.storage
+  const { data } = supabase.storage
     .from(config.storageBucket)
     .getPublicUrl(filePath)
-  console.log(
-    `Logo file uploaded. Public URL: ${publicUrlResponse.data.publicUrl}`
-  )
-  return publicUrlResponse.data.publicUrl
+  console.log(`Logo file uploaded. Public URL: ${data.publicUrl}`)
+  return data.publicUrl
 }
 
-// Inserts a new entry if it does not already exist
-async function insertIfNotExists(
-  db: any,
-  table: string,
+async function insertFilterIfNotExists(
+  table: "categories" | "labels" | "tags",
   name: string
 ): Promise<void> {
-  console.log(`Attempting to insert ${name} into ${table}`)
-
-  const { error } = await db
-    .from(table)
-    .insert([{ name }], { onConflict: "name" })
-
-  if (error && !error.message.includes("duplicate key value")) {
-    console.error(`Error inserting into ${table}: ${error.message}`)
-    throw new Error(`Error inserting into ${table}: ${error.message}`)
+  const db = getClient()
+  const id = crypto.randomUUID()
+  try {
+    await db.execute({
+      sql: `INSERT OR IGNORE INTO ${table} (id, name) VALUES (?, ?)`,
+      args: [id, name],
+    })
+    console.log(`${name} inserted or already exists in ${table}`)
+  } catch (error) {
+    console.error(`Error inserting into ${table}:`, error)
+    throw error
   }
-
-  console.log(`${name} successfully inserted or already exists in ${table}`)
 }
 
-// Generates the AI enrichment prompt with examples
-
-// Main function to handle the form submission
 export async function onSubmitToolAction(
   prevState: FormState,
   formData: FormData
 ): Promise<FormState> {
-  const db = createClient()
   const data = Object.fromEntries(formData.entries())
   const parsed = schema.safeParse(data)
 
   if (!parsed.success) {
-    console.error("Form validation failed")
     const fields: Record<string, string> = {}
     for (const key of Object.keys(data)) {
       fields[key] = data[key].toString()
@@ -113,24 +102,26 @@ export async function onSubmitToolAction(
   }
 
   try {
-    const { data: authData, error: authError } = await db.auth.getUser()
+    await initDb()
+
+    // Auth + storage still use Supabase
+    const supabase = createClient()
+    const { data: authData, error: authError } = await supabase.auth.getUser()
     if (authError || !authData.user) {
-      console.error("User authentication failed")
       throw new Error("User authentication failed")
     }
     const user = authData.user
 
     let logoUrl = ""
     const logoFile = formData.get("images") as File
-    if (logoFile) {
-      logoUrl = await uploadLogoFile(db, logoFile, parsed.data.codename)
+    if (logoFile && logoFile.size > 0) {
+      logoUrl = await uploadLogoFile(supabase, logoFile, parsed.data.codename)
     }
 
     let tags: Enrichment["tags"] = []
     let labels: Enrichment["labels"] = ["unlabeled"]
 
     if (config.aiEnrichmentEnabled) {
-      console.log("Generating AI enrichment data")
       const enrichmentPrompt = getAIEnrichmentPrompt(
         parsed.data.codename,
         parsed.data.categories,
@@ -147,64 +138,55 @@ export async function onSubmitToolAction(
 
       if (config.allowNewTags) {
         for (const tag of tags) {
-          await insertIfNotExists(db, "tags", tag)
+          await insertFilterIfNotExists("tags", tag)
         }
       }
-
       if (config.allowNewLabels) {
         for (const label of labels) {
-          await insertIfNotExists(db, "labels", label)
+          await insertFilterIfNotExists("labels", label)
         }
       }
     }
 
     if (config.allowNewCategories) {
-      await insertIfNotExists(db, "categories", parsed.data.categories)
+      await insertFilterIfNotExists("categories", parsed.data.categories)
     }
 
-    const productData = {
-      full_name: parsed.data.fullName,
-      email: parsed.data.email,
-      twitter_handle: parsed.data.twitterHandle,
-      product_website: parsed.data.productWebsite,
-      codename: parsed.data.codename,
-      punchline: parsed.data.punchline,
-      description: parsed.data.description,
-      logo_src: logoUrl,
-      categories: parsed.data.categories,
-      user_id: user.id,
-      approved: true,
-      tags,
-      labels,
-    }
-
-    console.log("Inserting product data")
-    const { error } = await db.from("products").insert([productData]).select()
-
-    if (error) {
-      console.error(`Error inserting product data: ${error.message}`)
-      throw new Error(error.message)
-    }
+    // Product data goes into Turso
+    const db = getClient()
+    const id = crypto.randomUUID()
+    await db.execute({
+      sql: `INSERT INTO products
+        (id, full_name, email, twitter_handle, product_website, codename, punchline, description, logo_src, categories, user_id, approved, tags, labels)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+      args: [
+        id,
+        parsed.data.fullName,
+        parsed.data.email,
+        parsed.data.twitterHandle,
+        parsed.data.productWebsite,
+        parsed.data.codename,
+        parsed.data.punchline,
+        parsed.data.description,
+        logoUrl,
+        parsed.data.categories,
+        user.id,
+        JSON.stringify(tags),
+        JSON.stringify(labels),
+      ],
+    })
 
     revalidatePath("/", "layout")
     revalidatePath("/products", "page")
 
     console.log("Product data successfully inserted")
-
     return { message: "Tool submitted successfully", issues: [] }
   } catch (error) {
-    console.error(
-      `Submission failed: ${
-        isErrorWithMessage(error) ? error.message : "Unknown error occurred"
-      }`
-    )
+    const msg = isErrorWithMessage(error) ? error.message : "Unknown error occurred"
+    console.error(`Submission failed: ${msg}`)
     return {
-      message: `Submission failed: ${
-        isErrorWithMessage(error) ? error.message : "Unknown error occurred"
-      }`,
-      issues: [
-        isErrorWithMessage(error) ? error.message : "Unknown error occurred",
-      ],
+      message: `Submission failed: ${msg}`,
+      issues: [msg],
     }
   }
 }

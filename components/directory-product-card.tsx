@@ -46,13 +46,13 @@ interface Product {
   codename: string
   punchline: string
   description: string
-  logo_src: string
+  logo_src: string | null
   user_id: string
   tags: string[]
   view_count: number
   approved: boolean
   labels: string[]
-  categories: string
+  categories: string | null
 }
 
 export const ResourceCard: React.FC<{
